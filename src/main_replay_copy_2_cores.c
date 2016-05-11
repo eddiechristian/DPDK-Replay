@@ -87,26 +87,29 @@ int main(int argc, char **argv)
 	/* Get number of ethernet devices */
 	nb_sys_ports = rte_eth_dev_count();
 	if (nb_sys_ports <= 0) FATAL_ERROR("Cannot find ETH devices\n");
-	
+
 	/* Create a mempool with per-core cache, initializing every element for be used as mbuf, and allocating on the current NUMA node */
-	pktmbuf_pool = rte_mempool_create(MEMPOOL_NAME, buffer_size-1, MEMPOOL_ELEM_SZ, MEMPOOL_CACHE_SZ, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init, NULL, rte_pktmbuf_init, NULL,rte_socket_id(), 0);
-	if (pktmbuf_pool == NULL) FATAL_ERROR("Cannot create cluster_mem_pool. Errno: %d [ENOMEM: %d, ENOSPC: %d, E_RTE_NO_TAILQ: %d, E_RTE_NO_CONFIG: %d, E_RTE_SECONDARY: %d, EINVAL: %d, EEXIST: %d]\n", rte_errno, ENOMEM, ENOSPC, E_RTE_NO_TAILQ, E_RTE_NO_CONFIG, E_RTE_SECONDARY, EINVAL, EEXIST  );
-	
+	pktmbuf_pool = rte_mempool_create(MEMPOOL_NAME, buffer_size-1, MEMPOOL_ELEM_SZ,
+    MEMPOOL_CACHE_SZ, sizeof(struct rte_pktmbuf_pool_private), rte_pktmbuf_pool_init,
+    NULL, rte_pktmbuf_init, NULL,rte_socket_id(), 0);
+  if (pktmbuf_pool == NULL) FATAL_ERROR("Cannot create cluster_mem_pool. \n");
+  //if (pktmbuf_pool == NULL) FATAL_ERROR("Cannot create cluster_mem_pool. Errno: %d [ENOMEM: %d, ENOSPC: %d, E_RTE_NO_TAILQ: %d, E_RTE_NO_CONFIG: %d, E_RTE_SECONDARY: %d, EINVAL: %d, EEXIST: %d]\n", rte_errno, ENOMEM, ENOSPC, E_RTE_NO_TAILQ, E_RTE_NO_CONFIG, E_RTE_SECONDARY, EINVAL, EEXIST  );
+
 	/* Create a ring for exchanging packets between cores, and allocating on the current NUMA node */
 	intermediate_ring = rte_ring_create 	(RING_NAME, buffer_size, rte_socket_id(), RING_F_SP_ENQ | RING_F_SC_DEQ );
  	if (intermediate_ring == NULL ) FATAL_ERROR("Cannot create ring");
 
 
-	/* Operations needed for each ethernet device */			
+	/* Operations needed for each ethernet device */
 	for(i=0; i < nb_sys_ports; i++)
 		init_port(i);
 
 	/* Start consumer and producer routine on 2 different cores: producer launched first... */
 	ret =  rte_eal_mp_remote_launch (main_loop_producer, NULL, SKIP_MASTER);
-	if (ret != 0) FATAL_ERROR("Cannot start consumer thread\n");	
+	if (ret != 0) FATAL_ERROR("Cannot start consumer thread\n");
 
 	/* ... and then loop in consumer */
-	main_loop_consumer ( NULL );	
+	main_loop_consumer ( NULL );
 
 	return 0;
 }
@@ -125,10 +128,10 @@ static int main_loop_producer(__attribute__((unused)) void * arg){
 	printf("Replay on %d interface(s)\n", nb_sys_ports);
 	printf("Each packet replayed %d time(s) on each interface\n", times);
 	pt = pcap_open_offline(file_name, ebuf);
-	if (pt == NULL){	
+	if (pt == NULL){
 		printf("Unable to open file: %s\n", file_name);
-		exit(1);			
-	}	
+		exit(1);
+	}
 
 	/* Infinite loop */
 	for (;;) {
@@ -183,11 +186,11 @@ static int main_loop_consumer(__attribute__((unused)) void * arg){
 
 	/* Prepare variables to rate setting if needed */
 	if(rate != 0){
-		mult_start = (double )rte_get_tsc_hz  () / 1000000000L; 
+		mult_start = (double )rte_get_tsc_hz  () / 1000000000L;
 		mult = mult_start;
 		ix = 0;
 	}
-	
+
 	/* Init start time */
 	ret = gettimeofday(&start_time, NULL);
 	if (ret != 0) FATAL_ERROR("Error: gettimeofday failed. Quitting...\n");
@@ -204,10 +207,10 @@ static int main_loop_consumer(__attribute__((unused)) void * arg){
 
 		/* Dequeue packet */
 		ret = rte_ring_dequeue(intermediate_ring, (void**)&m);
-		
+
 		/* Continue polling if no packet available */
 		if( unlikely (ret != 0)) continue;
-	
+
 		length = m->data_len;
 
 		/* For each received packet. */
@@ -260,7 +263,7 @@ static int main_loop_consumer(__attribute__((unused)) void * arg){
 				if (mult < 0) mult = 0;
 			}
 			/* Wait to adjust the rate*/
-			while(( rte_get_tsc_cycles() - tick_start) < (num_bytes_good_sent * mult / rate )) 
+			while(( rte_get_tsc_cycles() - tick_start) < (num_bytes_good_sent * mult / rate ))
 				if (unlikely(do_shutdown)) break;
 		}
 
@@ -277,7 +280,7 @@ static int main_loop_consumer(__attribute__((unused)) void * arg){
 				printf("Timeout of %ld seconds elapsed...\n", time_out);
 				sig_handler(SIGINT);
 			}
-				
+
 		}
 
 		/* Check if max_pkt have been sent */
@@ -313,7 +316,7 @@ void print_stats (void){
 
 	printf("Rate: %8.3fGbps  %8.3fMpps [Average rate: %8.3fGbps  %8.3fMpps], Buffer: %8.3f%% ", gbps_inst, mpps_inst, gbps_tot, mpps_tot, (double)rte_mempool_free_count (pktmbuf_pool)/buffer_size*100.0 );
 	printf("Packets read speed: %8.3fus\n", (double)avg/nb/rte_get_timer_hz()*1000000, max);
-	avg = max = nb = 0;	
+	avg = max = nb = 0;
 
 	/* Update counters */
 	old_num_bytes_good_sent = num_bytes_good_sent;
@@ -352,14 +355,14 @@ static void sig_handler(int signo)
 		/* Print the per stats  */
 		printf("\n\nQUITTING...\n");
 		ret = gettimeofday(&t_end, NULL);
-		if (ret != 0) FATAL_ERROR("Error: gettimeofday failed. Quitting...\n");		
+		if (ret != 0) FATAL_ERROR("Error: gettimeofday failed. Quitting...\n");
 		diff = t_end.tv_sec - start_time.tv_sec;
 		printf("The replay lasted %ld seconds. Sent %ld packets on every interface\n", diff, num_pkt_good_sent);
 		print_stats();
 
 		/* Close the pcap file */
 		pcap_close(pt);
-		exit(0);	
+		exit(0);
 	}
 }
 
@@ -371,7 +374,7 @@ static void init_port(int i) {
 		struct rte_eth_link link;
 		struct rte_eth_dev_info dev_info;
 		struct rte_eth_rss_conf rss_conf;
-		struct rte_eth_fdir fdir_conf;
+		//struct rte_eth_fdir fdir_conf;
 
 		/* Retreiving and printing device infos */
 		rte_eth_dev_info_get(i, &dev_info);
@@ -395,7 +398,7 @@ static void init_port(int i) {
 		ret = rte_eth_tx_queue_setup(i, 0, TX_QUEUE_SZ, rte_socket_id(), &tx_conf);
 		if (ret < 0) FATAL_ERROR("Error configuring transmitting queue. Errno: %d (%d bad arg, %d no mem)\n", -ret, EINVAL ,ENOMEM);
 
-		/* Start device */		
+		/* Start device */
 		ret = rte_eth_dev_start(i);
 		if (ret < 0) FATAL_ERROR("Cannot start port\n");
 
@@ -411,18 +414,18 @@ static void init_port(int i) {
 		rss_conf.rss_key = rss_key;
 		ret = rte_eth_dev_rss_hash_conf_get (i,&rss_conf);
 		if (ret == 0) printf("\tDevice supports RSS\n"); else printf("\tDevice DOES NOT support RSS\n");
-		
-		/* Print Flow director support */
-		ret = rte_eth_dev_fdir_get_infos (i, &fdir_conf);
-		if (ret == 0) printf("\tDevice supports Flow Director\n"); else printf("\tDevice DOES NOT support Flow Director\n"); 
 
-	
+		/* Print Flow director support */
+		//ret = rte_eth_dev_fdir_get_infos (i, &fdir_conf);
+		//if (ret == 0) printf("\tDevice supports Flow Director\n"); else printf("\tDevice DOES NOT support Flow Director\n");
+
+
 }
 
 static int parse_args(int argc, char **argv)
 {
 	int option;
-	
+
 
 	/* Retrive arguments */
 	while ((option = getopt(argc, argv,"f:s:r:B:C:t:T:")) != -1) {
@@ -441,7 +444,7 @@ static int parse_args(int argc, char **argv)
 				break;
 			case 'C': max_pkt = atof (optarg); /* Max packets before quitting */
 				break;
-             		default: return -1; 
+             		default: return -1;
 		}
    	}
 
@@ -457,5 +460,3 @@ int isPowerOfTwo (unsigned int x)
 {
   return ((x != 0) && !(x & (x - 1)));
 }
-
-

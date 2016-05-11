@@ -81,7 +81,7 @@ uint8_t rss_seed [] = {	0x6d, 0x5a, 0x6d, 0x5a, 0x6d, 0x5a, 0x6d, 0x5a,
 };
 
 /* This seed is to load balance only respect source IP, according to me (Martino Trevisan, from nowhere particular) */
-uint8_t rss_seed_src_ip [] = { 	
+uint8_t rss_seed_src_ip [] = {
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -89,7 +89,7 @@ uint8_t rss_seed_src_ip [] = {
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 /* This seed is to load balance only destination source IP, according to me (Martino Trevisan, from nowhere particular) */
-uint8_t rss_seed_dst_ip [] = { 	
+uint8_t rss_seed_dst_ip [] = {
 			0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -98,22 +98,23 @@ uint8_t rss_seed_dst_ip [] = {
 };
 
 
-/* Struct for devices configuration for const defines see rte_ethdev.h */
+// Struct for devices configuration for const defines see rte_ethdev.h
 static const struct rte_eth_conf port_conf = {
 	.rxmode = {
-		.mq_mode = ETH_MQ_RX_RSS,  	/* Enable RSS */
+		.mq_mode = ETH_MQ_RX_RSS,  	// Enable RSS
 	},
 	.txmode = {
 		.mq_mode = ETH_MQ_TX_NONE,
 	},
 	.rx_adv_conf = {
 		.rss_conf = {
-			.rss_key = rss_seed,				/* Set the seed,					*/
-			.rss_key_len = 40,				/* and the seed length.					*/
-			.rss_hf = (ETH_RSS_IPV4_TCP | ETH_RSS_UDP) ,	/* Set the mask of protocols RSS will be applied to 	*/
-		}	
+			.rss_key = rss_seed,				// Set the seed,
+			.rss_key_len = 40,				// and the seed length.
+			.rss_hf = (ETH_RSS_TCP | ETH_RSS_UDP) ,	// Set the mask of protocols RSS will be applied to
+		}
 	}
 };
+
 
 /* Struct for configuring each rx queue. These are default values */
 static const struct rte_eth_rxconf rx_conf = {
@@ -154,4 +155,3 @@ struct pcaprec_hdr_t {
    uint32_t incl_len;       /* number of octets of packet saved in file */
    uint32_t orig_len;       /* actual length of packet */
 } ;
-
