@@ -114,6 +114,10 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+
+
+
+
 static int main_loop_producer(__attribute__((unused)) void * arg){
 
 	struct rte_mbuf * m;
@@ -158,7 +162,7 @@ static int main_loop_producer(__attribute__((unused)) void * arg){
 		if(interval > max)
 			max = interval;
 
-
+    
 		/* Not fill the buffer */
 		while (rte_mempool_free_count (pktmbuf_pool) > buffer_size*BUFFER_RATIO ) {}
 
@@ -171,12 +175,72 @@ static int main_loop_producer(__attribute__((unused)) void * arg){
 
 	}
 
-	sig_handler (SIGINT);
+	//sig_handler (SIGINT);
+}
+
+void compute_tcp_checksum(struct iphdr *pIph, unsigned short *ipPayload) {
+    register unsigned long sum = 0;
+    unsigned short tcpLen = ntohs(pIph->tot_len) - (pIph->ihl<<2);
+    struct tcphdr *tcphdrp = (struct tcphdr*)(ipPayload);
+    //add the pseudo header
+    //the source ip
+    sum += (pIph->saddr>>16)&0xFFFF;
+    sum += (pIph->saddr)&0xFFFF;
+    //the dest ip
+    sum += (pIph->daddr>>16)&0xFFFF;
+    sum += (pIph->daddr)&0xFFFF;
+    //protocol and reserved: 6
+    sum += htons(IPPROTO_TCP);
+    //the length
+    sum += htons(tcpLen);
+
+    //add the IP payload
+    //initialize checksum to 0
+    tcphdrp->check = 0;
+    while (tcpLen > 1) {
+        sum += * ipPayload++;
+        tcpLen -= 2;
+    }
+    //if any bytes left, pad the bytes and add
+    if(tcpLen > 0) {
+        //printf("+++++++++++padding, %dn", tcpLen);
+        sum += ((*ipPayload)&htons(0xFF00));
+    }
+      //Fold 32-bit sum to 16 bits: add carrier to result
+      while (sum>>16) {
+          sum = (sum & 0xffff) + (sum >> 16);
+      }
+      sum = ~sum;
+    //set computation result
+    tcphdrp->check = (unsigned short)sum;
+}
+
+uint16_t _bswap16(uint16_t a)
+{
+  a = ((a & 0x00FF) << 8) | ((a & 0xFF00) >> 8);
+  return a;
+}
+
+
+csum (unsigned short *buf, int nwords)
+{
+  unsigned long sum;
+  for (sum = 0; nwords > 0; nwords--){
+    unsigned short val=*buf;
+    sum += _bswap16(val);
+    //printf("%#04x\n",val);
+    //sum += val;
+    buf++;
+    //printf("\n\n");
+}
+  sum = (sum >> 16) + (sum & 0xffff);
+  sum += (sum >> 16);
+  return ~sum;
 }
 
 /* Loop function, batch timing implemented */
 static int main_loop_consumer(__attribute__((unused)) void * arg){
-	struct rte_mbuf * m, * m_copy;
+	struct rte_mbuf * m, * m_copy,*m_put_back;
 	struct timeval now;
 	struct ipv4_hdr * ip_h;
 	double mult_start = 0, mult = 0, real_rate, deltaMillisec;
@@ -213,6 +277,11 @@ static int main_loop_consumer(__attribute__((unused)) void * arg){
 
 		length = m->data_len;
 
+    while( (m_put_back = rte_pktmbuf_alloc (pktmbuf_pool)) == NULL) {}
+    m_put_back->data_len = m_put_back->pkt_len = length;
+    rte_memcpy ( (char*) m_put_back->buf_addr + m_put_back->data_off, (char*) m->buf_addr + m->data_off, length);
+    ret = rte_ring_enqueue (intermediate_ring, m_put_back);
+
 		/* For each received packet. */
 		for (i = 0; likely( i < nb_sys_ports * times ) ; i++) {
 
@@ -221,7 +290,13 @@ static int main_loop_consumer(__attribute__((unused)) void * arg){
 			if (sum_value > 0){
 				ip_h->src_addr+=sum_value*256*256*256;
 				ip_h->dst_addr+=sum_value*256*256*256;
+        ip_h->hdr_checksum = 0;
+        ip_h->hdr_checksum =  _bswap16(csum((unsigned short*)ip_h,10));
+        char * ip_payload = (char*)ip_h;
+        ip_payload+=20;
+        compute_tcp_checksum(ip_h,(unsigned short*)ip_payload);
 			}
+
 
 			/* The last time sends 'm', the other times it makes a copy */
 			if(i == nb_sys_ports * times-1){
@@ -389,9 +464,10 @@ static void init_port(int i) {
 		/* Configure rx queue j of current device on current NUMA socket. It takes elements from the mempool */
 		ret = rte_eth_rx_queue_setup(i, 0, RX_QUEUE_SZ, rte_socket_id(), &rx_conf, pktmbuf_pool);
 		if (ret < 0) FATAL_ERROR("Error configuring receiving queue\n");
-		/* Configure mapping [queue] -> [element in stats array] */
-		ret = rte_eth_dev_set_rx_queue_stats_mapping 	(i, 0, 0);
-		if (ret < 0) FATAL_ERROR("Error configuring receiving queue stats\n");
+
+    /* Configure mapping [queue] -> [element in stats array] */
+		//eddie ret = rte_eth_dev_set_rx_queue_stats_mapping 	(i, 0, 0);
+		//eddie if (ret < 0) FATAL_ERROR("Error configuring receiving queue stats\n");
 
 
 		/* Configure tx queue of current device on current NUMA socket. Mandatory configuration even if you want only rx packet */

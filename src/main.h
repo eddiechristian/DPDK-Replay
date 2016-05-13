@@ -32,6 +32,8 @@
 #include <sched.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
 
 #include <rte_common.h>
 #include <rte_log.h>
