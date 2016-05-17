@@ -115,7 +115,12 @@ int main(int argc, char **argv)
 }
 
 
-
+struct lcore_params {
+	unsigned worker_id;
+	struct rte_distributor *d;
+	struct rte_ring *r;
+	struct rte_mempool *mem_pool;
+};
 
 
 static int main_loop_producer(__attribute__((unused)) void * arg){
@@ -127,6 +132,10 @@ static int main_loop_producer(__attribute__((unused)) void * arg){
 	uint64_t time, interval, end_time;
 	int ret;
 
+  struct rte_mempool *mbuf_pool;
+	struct rte_distributor *d;
+	struct rte_ring *output_ring;
+  unsigned  worker_id = 0;
 	/* Open the trace */
 	printf("Opening file: %s\n", file_name);
 	printf("Replay on %d interface(s)\n", nb_sys_ports);
@@ -136,6 +145,14 @@ static int main_loop_producer(__attribute__((unused)) void * arg){
 		printf("Unable to open file: %s\n", file_name);
 		exit(1);
 	}
+
+
+
+  struct lcore_params *p =
+					rte_malloc(NULL, sizeof(*p), 0);
+			if (!p)
+				rte_panic("malloc failure\n");
+			*p = (struct lcore_params){worker_id, d, output_ring, mbuf_pool};
 
 	/* Infinite loop */
 	for (;;) {
@@ -162,7 +179,7 @@ static int main_loop_producer(__attribute__((unused)) void * arg){
 		if(interval > max)
 			max = interval;
 
-    
+
 		/* Not fill the buffer */
 		while (rte_mempool_free_count (pktmbuf_pool) > buffer_size*BUFFER_RATIO ) {}
 

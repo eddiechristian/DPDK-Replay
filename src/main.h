@@ -140,6 +140,10 @@ static const struct rte_eth_txconf tx_conf = {
 	.tx_rs_thresh = 0,      /* Use PMD default values */
 };
 
+struct test{
+  uint64_t num_packets;
+  uint64_t num_bytes;
+};
 
 struct pcap_hdr_t {
         uint32_t magic_number;   /* magic number */
